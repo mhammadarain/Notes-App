@@ -1,31 +1,28 @@
-
-
-class NotesModel{
-
+class NotesModel {
   final int? id;
   final String title;
-  final int age;
   final String dscription;
-  final String email;
+  final String date;
 
-  NotesModel({this.id, required this.title, required this.email, required this.dscription, required this.age});
+  NotesModel({
+    this.id,
+    required this.title,
+    required this.dscription,
+    required this.date,
+  });
 
-  NotesModel.fromMap(Map<String, dynamic> res):
-      id = res["id"],
-      title  = res["title"],
-  age = res["age"],
+  NotesModel.fromMap(Map<String, dynamic> res)
+      : id = res["id"],
+        title = res["title"],
         dscription = res["dscription"],
-  email = res["email"];
+        date = res["date"];
 
-  Map<String, Object?> toMap(){
+  Map<String, Object?> toMap() {
     return {
       "id": id,
       "title": title,
-      "age":age,
-    "dscription": dscription,
-      "email": email,
+      "dscription": dscription,
+      "date": date,
     };
   }
-
-
 }
