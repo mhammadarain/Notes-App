@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:notes_sqlite/db_handler.dart';
 import 'notes.dart';
@@ -16,6 +18,10 @@ class _HomePageState extends State<HomePage> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
 
+  bool _isTitleValid = true; // Validation state for title
+  bool _isDescriptionValid = true; // Validation state for description
+  String _errorMessage = ''; // Error message to show
+
   @override
   void initState() {
     super.initState();
@@ -28,6 +34,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _showNoteBottomSheet(BuildContext context, {NotesModel? note}) {
+    setState(() {
+      _isTitleValid = true; // Reset validation state for title
+      _isDescriptionValid = true; // Reset validation state for description
+      _errorMessage = ''; // Reset error message
+    });
+
     if (note != null) {
       _titleController.text = note.title;
       _descriptionController.text = note.dscription;
@@ -36,91 +48,158 @@ class _HomePageState extends State<HomePage> {
       _descriptionController.clear();
     }
 
+    final _formKey = GlobalKey<FormState>();
+
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (BuildContext context) {
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _titleController,
-                decoration: InputDecoration(
-                  labelText: 'Title',
-                  border: OutlineInputBorder(),
-                  errorText: _titleController.text.isEmpty ? 'Title is required' : null,
-                ),
-              ),
-              SizedBox(height: 10),
-              TextField(
-                controller: _descriptionController,
-                decoration: InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(),
-                  errorText: _descriptionController.text.isEmpty ? 'Description is required' : null,
-                ),
-              ),
-              SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        return SizedBox(
+          height: MediaQuery.of(context).size.height * 0.95,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  ElevatedButton(
-                    onPressed: () {
-                      if (_titleController.text.isEmpty || _descriptionController.text.isEmpty) {
-                        setState(() {});
-                      } else {
-                        final date = DateTime.now().toString().split(' ')[0]; // Only date
-                        if (note != null) {
-                          dbHelper!
-                              .update(NotesModel(
-                            id: note.id,
-                            title: _titleController.text,
-                            dscription: _descriptionController.text,
-                            date: date,
-                          ))
-                              .then((value) {
-                            setState(() {
-                              notesList = dbHelper!.getNotesList();
-                            });
-                            Navigator.pop(context);
-                          });
-                        } else {
-                          dbHelper!
-                              .insert(NotesModel(
-                            title: _titleController.text,
-                            dscription: _descriptionController.text,
-                            date: date,
-                          ))
-                              .then((value) {
-                            setState(() {
-                              notesList = dbHelper!.getNotesList();
-                            });
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text('Note successfully added!'),
-                            ));
-                            Navigator.pop(context);
-                          });
-                        }
-                      }
-                    },
-                    child: Text(note != null ? 'Update' : 'Add'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    child: Text('Cancel'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
+                  // Display the error message if validation fails
+                  if (!_isTitleValid || !_isDescriptionValid)
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                        _errorMessage,
+                        style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                      ),
                     ),
+                  // Title TextField
+                  TextFormField(
+                    controller: _titleController,
+                    decoration: InputDecoration(
+                      labelText: 'Title',
+                      border: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: _isTitleValid ? Colors.blue : Colors.red, // Change color based on validation
+                        ),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Title is required';
+                      }
+                      return null;
+                    },
                   ),
+                  SizedBox(height: 10),
+                  // Description TextField
+                  TextFormField(
+                    controller: _descriptionController,
+                    maxLines: 5,
+                    decoration: InputDecoration(
+                      labelText: 'Description',
+                      alignLabelWithHint: true,
+                      border: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: _isDescriptionValid ? Colors.blue : Colors.red, // Change color based on validation
+                        ),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Description is required';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          child: Text('Cancel'),
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            setState(() {
+                              _isTitleValid = _titleController.text.trim().isNotEmpty;
+                              _isDescriptionValid = _descriptionController.text.trim().isNotEmpty;
+                              // Set error message based on the validation result
+                              _errorMessage = _isTitleValid && _isDescriptionValid
+                                  ? ''
+                                  : 'Both Title and Description are required';
+                            });
+
+                            // If both fields are valid, proceed with the add or update
+                            if (_isTitleValid && _isDescriptionValid) {
+                              final date = DateTime.now().toString().split(' ')[0]; // Get only the date
+                              if (note != null) {
+                                // Update existing note
+                                dbHelper!
+                                    .update(
+                                  NotesModel(
+                                    id: note.id,
+                                    title: _titleController.text.trim(),
+                                    dscription: _descriptionController.text.trim(),
+                                    date: date,
+                                  ),
+                                )
+                                    .then((value) {
+                                  setState(() {
+                                    notesList = dbHelper!.getNotesList();
+                                  });
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Note successfully updated!'),
+                                    ),
+                                  );
+                                }).catchError((error) {
+                                  print('Error updating note: $error');
+                                });
+                              } else {
+                                // Insert new note
+                                dbHelper!
+                                    .insert(
+                                  NotesModel(
+                                    title: _titleController.text.trim(),
+                                    dscription: _descriptionController.text.trim(),
+                                    date: date,
+                                  ),
+                                )
+                                    .then((value) {
+                                  setState(() {
+                                    notesList = dbHelper!.getNotesList(); // Refresh the notes list
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Note successfully added!'),
+                                    ),
+                                  );
+                                  Navigator.pop(context); // Close the bottom sheet
+                                }).catchError((error) {
+                                  print('Error adding note: $error');
+                                });
+                              }
+                            }
+                          },
+                          child: Text(note != null ? 'Update' : 'Add'),
+                        ),
+                      ),
+                    ],
+                  )
                 ],
-              )
-            ],
+              ),
+            ),
           ),
         );
       },
@@ -130,12 +209,20 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.blue[50],
       appBar: AppBar(
-        title: Text("Notes"),
-        centerTitle: true,
+        backgroundColor: Colors.blue[50],
+        title: Padding(
+          padding: const EdgeInsets.only(top: 30),
+          child: Text(
+            "Notes",
+            style: TextStyle(fontSize: 33),
+          ),
+        ),
       ),
       body: Column(
         children: [
+          SizedBox(height: 20),
           Expanded(
             child: FutureBuilder(
               future: notesList,
@@ -146,6 +233,7 @@ class _HomePageState extends State<HomePage> {
                     itemBuilder: (context, index) {
                       return Dismissible(
                         key: ValueKey<int>(snapshot.data![index].id!),
+                        direction: DismissDirection.endToStart,
                         background: Container(
                           color: Colors.redAccent,
                           alignment: Alignment.centerRight,
@@ -153,9 +241,10 @@ class _HomePageState extends State<HomePage> {
                           child: Icon(Icons.delete, color: Colors.white),
                         ),
                         onDismissed: (direction) {
-                          dbHelper!.delete(snapshot.data![index].id!).then((value) {
+                          int noteId = snapshot.data![index].id!;
+                          dbHelper!.delete(noteId).then((value) {
                             setState(() {
-                              notesList = dbHelper!.getNotesList();
+                              snapshot.data!.removeAt(index); // Remove item from list
                             });
                           });
                         },
@@ -165,26 +254,29 @@ class _HomePageState extends State<HomePage> {
                           },
                           child: Card(
                             margin: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    snapshot.data![index].title.toString(),
-                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                                  ),
-                                  SizedBox(height: 5),
-                                  Text(
-                                    snapshot.data![index].dscription.toString(),
-                                    style: TextStyle(fontSize: 14),
-                                  ),
-                                  SizedBox(height: 5),
-                                  Text(
-                                    snapshot.data![index].date,
-                                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                                  ),
-                                ],
+                            child: Container(
+                              width: double.infinity,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      snapshot.data![index].title.toString(),
+                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                    ),
+                                    SizedBox(height: 5),
+                                    Text(
+                                      snapshot.data![index].dscription.toString(),
+                                      style: TextStyle(fontSize: 14),
+                                    ),
+                                    SizedBox(height: 5),
+                                    Text(
+                                      snapshot.data![index].date,
+                                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
